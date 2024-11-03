@@ -26,6 +26,8 @@
 
 #define VERSION "1.2.0"
 
+// Defines the spacing between each item in the container (vbox).
+#define ITEM_SPACING 6
 
 // Top-level window.
 GtkWidget *window;
@@ -74,6 +76,10 @@ struct draggable_thing fake_dragdata;
 GtkWidget *all_button;
 // ---
 
+// How many items which have been selected and will be dragged.
+int selected_items_count = 0;
+int * selected_items_count_ptr = &selected_items_count;
+
 void add_target_button();
 
 void do_quit(GtkWidget *widget, gpointer data) {
@@ -85,6 +91,17 @@ void button_clicked(GtkWidget *widget, gpointer user_data) {
     if (0 == fork()) {
         execlp("xdg-open", "xdg-open", dd->uri, NULL);
     }
+}
+
+void button_toggled(GtkWidget *widget, gpointer user_data) {
+}
+
+void get_selected_files(GtkWidget* widget, gpointer data) {
+  if (widget != NULL && gtk_toggle_button_get_active((GtkToggleButton*)widget)) {
+    int* counter = selected_items_count_ptr;
+
+    uri_collection[(*counter)++] = ((char*)data)[0];
+  }
 }
 
 void drag_data_get(GtkWidget    *widget,
@@ -102,7 +119,27 @@ void drag_data_get(GtkWidget    *widget,
             uri_collection[uri_count] = NULL;
             uris = uri_collection;
         } else {
-            uris = single_uri_data;
+          /* g_value_set_int(count, 1); */
+
+          /* gpointer count_ptr; */
+          /* g_value_set_poiner(count, count_ptr); */
+
+          if (uri_collection != NULL)
+            free(uri_collection);
+
+          uri_collection = malloc(sizeof(char*) * (MAX_SIZE  + 1));
+
+          *selected_items_count_ptr = 0;
+          gtk_container_foreach((GtkContainer*)vbox, get_selected_files, single_uri_data);
+
+          /* while ((child = (GtkWidget*)children->next()) != NULL) { */
+          /*   printf("%i\n", gtk_toggle_button_get_active((GtkToggleButton*)child)); */
+          /* } */
+
+          uri_collection[(*selected_items_count_ptr)++] = NULL;
+          uris = uri_collection;
+
+          uris = single_uri_data;
         }
         if (verbose) {
             if (drag_all)
@@ -162,10 +199,13 @@ GtkButton *add_button(char *label, struct draggable_thing *dragdata, int type) {
     GtkWidget *button;
 
     if (icons_only) {
-        button = gtk_button_new();
+        button = gtk_toggle_button_new();
     } else {
-        button = gtk_button_new_with_label(label);
+        button = gtk_toggle_button_new_with_label(label);
     }
+
+    // Set the toggled state by default.
+    gtk_toggle_button_set_active((GtkToggleButton*)button, TRUE);
 
     // Show a tooltip with the filename. Should perhaps show the full path.
     gtk_widget_set_tooltip_text(button, label);
@@ -185,8 +225,11 @@ GtkButton *add_button(char *label, struct draggable_thing *dragdata, int type) {
     gtk_drag_source_set_target_list(GTK_WIDGET(button), targetlist);
     g_signal_connect(GTK_WIDGET(button), "drag-data-get",
             G_CALLBACK(drag_data_get), dragdata);
-    g_signal_connect(GTK_WIDGET(button), "clicked",
-            G_CALLBACK(button_clicked), dragdata);
+    /* g_signal_connect(GTK_WIDGET(button), "clicked", */
+    /*         G_CALLBACK(button_clicked), dragdata); */
+
+    /* g_signal_connect(GTK_WIDGET(button), "toggled", G_CALLBACK(button_toggled), dragdata); */
+
     g_signal_connect(GTK_WIDGET(button), "drag-end",
             G_CALLBACK(drag_end), dragdata);
 
@@ -574,7 +617,7 @@ int main (int argc, char **argv) {
 
     g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
-    vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+    vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, ITEM_SPACING);
 
     gtk_container_add(GTK_CONTAINER(panel), vbox);
 
