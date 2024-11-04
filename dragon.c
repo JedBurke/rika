@@ -38,6 +38,8 @@ GtkWidget *panel;
 // Child of panel, where all the children are added.
 GtkWidget *vbox;
 
+GtkWidget *action_bar;
+
 GtkIconTheme *icon_theme;
 
 char *progname;
@@ -80,6 +82,11 @@ bool all_compact = false;
 char file_num_label[10];
 struct draggable_thing fake_dragdata;
 GtkWidget *all_button;
+
+// Whether the action bar which, holds buttons relating to relecting files
+// should be enabled.
+bool command_bar_enabled = false;
+
 // ---
 
 // How many items which have been selected and will be dragged.
@@ -102,6 +109,103 @@ SelectableItem* selectable_items[MAX_SIZE];
 // a new item is being added.
 int selectable_index = 0;
 
+void selectable_set_active(bool state) {
+  for (int i = 0; i < MAX_SIZE; i++) {
+    SelectableItem* item = selectable_items[i];
+
+    if (item != NULL) {
+      gtk_toggle_button_set_active((GtkToggleButton*)item->ref, state);
+    }
+  }
+}
+
+void selectable_next(bool desired_state) {
+  // How many items should be selected. Every item matching `desired_state`
+  // will increment the value by one.
+  int select_count = 0;
+
+  // Whether an item currently matching `desired_state` has been found.
+  bool gathering = false;
+
+  // Where to start processing the items which need to have their active state
+  // set to `desired_state`. Its value should be the first item not matching
+  // `desired_state` while `gathering` is true.
+  int offset = 0;
+
+  for (int gather_index = 0; gather_index < MAX_SIZE; gather_index++) {
+    SelectableItem* item = selectable_items[gather_index];
+
+    if (item == NULL)
+      break;
+
+    if (!gathering && item->selected == desired_state) {
+      gathering = true;
+    }
+
+    if (gathering) {
+      if (item->selected == desired_state) {
+        gtk_toggle_button_set_active((GtkToggleButton*)item->ref, !desired_state);
+        select_count++;
+
+      } else {
+        // Stop processing, since the chain has been broken.
+        offset = gather_index;
+        break;
+
+      }
+    }
+  }
+
+  // Set the desired state after the items have been gathered and the offset
+  // has been determined.
+  for (int set_index = offset; set_index < offset + select_count; set_index++)
+  {
+    SelectableItem* item = selectable_items[set_index];
+
+    if (item == NULL)
+      break;
+
+    gtk_toggle_button_set_active((GtkToggleButton*)item->ref, desired_state);
+  }
+}
+
+bool handle_keys(GtkWidget* self, GdkEventKey *event, gpointer user_data) {
+  switch (event->keyval) {
+    // Select all.
+    case GDK_KEY_a:
+      selectable_set_active(true);
+      return true;
+
+    // Deselect all.
+    case GDK_KEY_d:
+      selectable_set_active(false);
+      return true;
+
+    // Previous set.
+    case GDK_KEY_k:
+      return false;
+
+    // Next set.
+    case GDK_KEY_j:
+      selectable_next(true);
+      return true;
+
+    default:
+      return false;
+  }
+
+}
+
+GtkWidget* init_command_bar() {
+  GtkWidget* bar = gtk_action_bar_new();
+
+  GtkWidget *next_set;
+  next_set = gtk_button_new_from_icon_name("go-bottom", GTK_ICON_SIZE_SMALL_TOOLBAR);
+
+  gtk_action_bar_pack_start((GtkActionBar*)bar, next_set);
+
+  return bar;
+}
 
 void add_target_button();
 
@@ -657,6 +761,8 @@ int main (int argc, char **argv) {
 
     // Scrolling Window
     panel = gtk_scrolled_window_new(NULL, NULL);
+    gtk_widget_set_vexpand(panel, true);
+    gtk_widget_set_hexpand(panel, true);
 
     closure = g_cclosure_new(G_CALLBACK(do_quit), NULL, NULL);
     accelgroup = gtk_accel_group_new();
@@ -671,11 +777,27 @@ int main (int argc, char **argv) {
 
     g_signal_connect(window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
+    gtk_widget_add_events(window, GDK_KEY_PRESS_MASK);
+    g_signal_connect(G_OBJECT(window), "key_press_event", G_CALLBACK(handle_keys), NULL);
+
     vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, ITEM_SPACING);
 
-    gtk_container_add(GTK_CONTAINER(panel), vbox);
 
-    gtk_container_add(GTK_CONTAINER(window), panel);
+    GtkWidget *outer_panel;
+    outer_panel = gtk_grid_new();
+    gtk_orientable_set_orientation((GtkOrientable*)outer_panel, GTK_ORIENTATION_VERTICAL);
+    gtk_widget_set_vexpand(outer_panel, true);
+    gtk_widget_set_hexpand(outer_panel, true);
+
+    gtk_container_add(GTK_CONTAINER(panel), vbox);
+    gtk_container_add(GTK_CONTAINER(outer_panel), panel);
+
+    if (command_bar_enabled) {
+      action_bar = init_command_bar();
+      gtk_container_add(GTK_CONTAINER(outer_panel), action_bar);
+    }
+
+    gtk_container_add(GTK_CONTAINER(window), outer_panel);
 
     gtk_window_set_title(GTK_WINDOW(window), "dragon");
 
