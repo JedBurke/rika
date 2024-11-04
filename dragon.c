@@ -65,6 +65,12 @@ struct draggable_thing {
     char *uri;
 };
 
+typedef struct {
+    GtkWidget* ref;
+    char* uri;
+    bool selected;
+} SelectableItem;
+
 // MODE_ALL
 #define MAX_SIZE 100
 char** uri_collection;
@@ -77,8 +83,25 @@ GtkWidget *all_button;
 // ---
 
 // How many items which have been selected and will be dragged.
-int selected_items_count = 0;
-int * selected_items_count_ptr = &selected_items_count;
+
+// Determines whether the items will be active (selected) by default or not.
+#define DEFAULT_ACTIVE_STATE true
+
+// Whether only the item that is being dragged should be processed and not all
+// the other selected items.
+bool single_select = false;
+
+// A list of the selected items to be processed.
+char** selected_items = NULL;
+
+// A SelectableItem pointer array meant to hold references of the files added
+// to the instance.
+SelectableItem* selectable_items[MAX_SIZE];
+
+// The current index of the selectable_items array. Only to be incremented when
+// a new item is being added.
+int selectable_index = 0;
+
 
 void add_target_button();
 
@@ -93,14 +116,17 @@ void button_clicked(GtkWidget *widget, gpointer user_data) {
     }
 }
 
+// Updates the active (selected) status of the file in `selectable_items` when toggled.
 void button_toggled(GtkWidget *widget, gpointer user_data) {
-}
+  for (int i = 0; i < MAX_SIZE; i++) {
+    SelectableItem* item = selectable_items[i];
 
-void get_selected_files(GtkWidget* widget, gpointer data) {
-  if (widget != NULL && gtk_toggle_button_get_active((GtkToggleButton*)widget)) {
-    int* counter = selected_items_count_ptr;
+    if (item != NULL && item->ref == widget) {
+      bool selected = gtk_toggle_button_get_active((GtkToggleButton*)widget);
+      item->selected = selected;
 
-    uri_collection[(*counter)++] = ((char*)data)[0];
+      break;
+    }
   }
 }
 
@@ -110,36 +136,52 @@ void drag_data_get(GtkWidget    *widget,
                guint             info,
                guint             time,
                gpointer          user_data) {
-    struct draggable_thing *dd = (struct draggable_thing *)user_data;
-    if (info == TARGET_TYPE_URI) {
 
+    struct draggable_thing *dd = (struct draggable_thing *)user_data;
+
+    if (info == TARGET_TYPE_URI) {
         char** uris;
         char* single_uri_data[2] = {dd->uri, NULL};
+
         if (drag_all) {
             uri_collection[uri_count] = NULL;
             uris = uri_collection;
         } else {
-          /* g_value_set_int(count, 1); */
+          // Handle the --single-select option here.
+          if (single_select) {
+            uris = single_uri_data;
 
-          /* gpointer count_ptr; */
-          /* g_value_set_poiner(count, count_ptr); */
+          } else {
+            // Reinitialize the selected items array.
+            if (selected_items != NULL)
+              free(selected_items);
 
-          if (uri_collection != NULL)
-            free(uri_collection);
+            selected_items = malloc(sizeof(char*) * (MAX_SIZE  + 1));
 
-          uri_collection = malloc(sizeof(char*) * (MAX_SIZE  + 1));
+            // Go through each of the items in `selectable_items`, storing it
+            // as `item` and checking if the `selected` field is true. If so,
+            // store the `uri` field in the `selected_items` array.
+            int selected_index = 0;
 
-          *selected_items_count_ptr = 0;
-          gtk_container_foreach((GtkContainer*)vbox, get_selected_files, single_uri_data);
+            for (int item_index = 0; item_index < MAX_SIZE; item_index++) {
+              SelectableItem* item = selectable_items[item_index];
 
-          /* while ((child = (GtkWidget*)children->next()) != NULL) { */
-          /*   printf("%i\n", gtk_toggle_button_get_active((GtkToggleButton*)child)); */
-          /* } */
+              if (item != NULL && item->selected == true)
+                selected_items[selected_index++] = item->uri;
 
-          uri_collection[(*selected_items_count_ptr)++] = NULL;
-          uris = uri_collection;
+            }
 
-          uris = single_uri_data;
+            // Check if any items have been selected. If not, return the one
+            // which is being dragged regardless of its status.
+            if (selected_index == 0) {
+              uris = single_uri_data;
+
+            } else {
+              selected_items[selected_index] = NULL;
+              uris = selected_items;
+
+            }
+          }
         }
         if (verbose) {
             if (drag_all)
@@ -228,12 +270,19 @@ GtkButton *add_button(char *label, struct draggable_thing *dragdata, int type) {
     /* g_signal_connect(GTK_WIDGET(button), "clicked", */
     /*         G_CALLBACK(button_clicked), dragdata); */
 
-    /* g_signal_connect(GTK_WIDGET(button), "toggled", G_CALLBACK(button_toggled), dragdata); */
+    g_signal_connect(GTK_WIDGET(button), "toggled", G_CALLBACK(button_toggled), NULL);
 
     g_signal_connect(GTK_WIDGET(button), "drag-end",
             G_CALLBACK(drag_end), dragdata);
 
     gtk_container_add(GTK_CONTAINER(vbox), button);
+
+    SelectableItem *current_item = malloc(sizeof(SelectableItem));
+    current_item->ref = button;
+    current_item->uri = dragdata->uri;
+    current_item->selected = DEFAULT_ACTIVE_STATE;
+
+    selectable_items[selectable_index++] = current_item;
 
     if (drag_all)
       add_uri(dragdata->uri);
@@ -525,6 +574,8 @@ int main (int argc, char **argv) {
             printf("  --all,         -a  drag all files at once\n");
             printf("  --all-compact, -A  drag all files at once, only displaying"
                     " the number of files\n");
+            printf("  --single       -S  drag only the current file, regardless"
+                   " of how many are selected\n");
             printf("  --icon-only,   -i  only show icons in drag-and-drop"
                     " windows\n");
             printf("  --name-only,   -f  only show the file's basename and"
@@ -565,6 +616,9 @@ int main (int argc, char **argv) {
                 || strcmp(argv[i], "--all-compact") == 0) {
             drag_all = true;
             all_compact = true;
+        } else if (strcmp(argv[i], "-S") == 0
+                || strcmp(argv[i], "--single") == 0) {
+            single_select = true;
         } else if (strcmp(argv[i], "-i") == 0
                 || strcmp(argv[i], "--icon-only") == 0) {
             icons_only = true;
