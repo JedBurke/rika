@@ -92,7 +92,8 @@ bool command_bar_enabled = false;
 // How many items which have been selected and will be dragged.
 
 // Determines whether the items will be active (selected) by default or not.
-#define DEFAULT_ACTIVE_STATE true
+// Can be set with the `-G` or `--select-all` switches.
+bool default_active_state = false;
 
 // Whether only the item that is being dragged should be processed and not all
 // the other selected items.
@@ -350,8 +351,7 @@ GtkButton *add_button(char *label, struct draggable_thing *dragdata, int type) {
         button = gtk_toggle_button_new_with_label(label);
     }
 
-    // Set the toggled state by default.
-    gtk_toggle_button_set_active((GtkToggleButton*)button, TRUE);
+    gtk_toggle_button_set_active((GtkToggleButton*)button, default_active_state);
 
     // Show a tooltip with the filename. Should perhaps show the full path.
     gtk_widget_set_tooltip_text(button, label);
@@ -384,7 +384,7 @@ GtkButton *add_button(char *label, struct draggable_thing *dragdata, int type) {
     SelectableItem *current_item = malloc(sizeof(SelectableItem));
     current_item->ref = button;
     current_item->uri = dragdata->uri;
-    current_item->selected = DEFAULT_ACTIVE_STATE;
+    current_item->selected = default_active_state;
 
     selectable_items[selectable_index++] = current_item;
 
@@ -680,6 +680,7 @@ int main (int argc, char **argv) {
                     " the number of files\n");
             printf("  --single       -S  drag only the current file, regardless"
                    " of how many are selected\n");
+            printf("  --select-all   -G  select all files at start\n");
             printf("  --icon-only,   -i  only show icons in drag-and-drop"
                     " windows\n");
             printf("  --name-only,   -f  only show the file's basename and"
@@ -723,6 +724,9 @@ int main (int argc, char **argv) {
         } else if (strcmp(argv[i], "-S") == 0
                 || strcmp(argv[i], "--single") == 0) {
             single_select = true;
+        } else if (strcmp(argv[i], "-G") == 0
+                || strcmp(argv[i], "--select-all") == 0) {
+            default_active_state = true;
         } else if (strcmp(argv[i], "-i") == 0
                 || strcmp(argv[i], "--icon-only") == 0) {
             icons_only = true;
