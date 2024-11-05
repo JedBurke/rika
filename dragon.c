@@ -166,6 +166,11 @@ void selectable_next(bool desired_state) {
     if (item == NULL)
       break;
 
+    // Have the widget explicitly grab focus when the command bar is enabled,
+    // since it will otherwise scroll off the screen.
+    if (command_bar_enabled)
+      gtk_widget_grab_focus((GtkWidget*)item->ref);
+
     gtk_toggle_button_set_active((GtkToggleButton*)item->ref, desired_state);
   }
 }
