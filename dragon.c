@@ -74,7 +74,7 @@ typedef struct {
 } SelectableItem;
 
 // MODE_ALL
-#define MAX_SIZE 100
+#define MAX_SIZE 1000
 char** uri_collection;
 int uri_count = 0;
 bool drag_all = false;
