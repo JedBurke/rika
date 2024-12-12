@@ -120,6 +120,65 @@ void selectable_set_active(bool state) {
   }
 }
 
+// NOTE Not working, for-loop won't work since it needs to cycle back to the
+// current item.
+void selectable_previous(bool desired_state) {
+  // How many items should be selected. Every item matching `desired_state`
+  // will increment the value by one.
+  int select_count = 0;
+
+  // Whether an item currently matching `desired_state` has been found.
+  bool gathering = false;
+
+  // Where to start processing the items which need to have their active state
+  // set to `desired_state`. Its value should be the first item not matching
+  // `desired_state` while `gathering` is true.
+  int offset = 0;
+
+  for (int gather_index = MAX_SIZE - 1; gather_index > 0; gather_index--) {
+    SelectableItem* item = selectable_items[gather_index];
+
+    if (item == NULL)
+      continue;
+
+    if (!gathering && item->selected == desired_state) {
+      gathering = true;
+    }
+
+    if (gathering) {
+      if (item->selected == desired_state) {
+        printf("%s\n", item->uri);
+        gtk_toggle_button_set_active((GtkToggleButton*)item->ref, !desired_state);
+        select_count--;
+
+      } else {
+        // Stop processing, since the chain has been broken.
+        offset = gather_index;
+        break;
+
+      }
+    }
+  }
+
+  // Set the desired state after the items have been gathered and the offset
+  // has been determined.
+  int processed = 0;
+  int i = offset;
+
+  do {
+    if (i < 0)
+      i = MAX_SIZE - 1;
+
+    SelectableItem* item = selectable_items[i];
+
+    if (item != NULL) {
+      gtk_toggle_button_set_active((GtkToggleButton*)item->ref, desired_state);
+    }
+
+    i--;
+  } while (select_count > processed++);
+}
+
 void selectable_next(bool desired_state) {
   // How many items should be selected. Every item matching `desired_state`
   // will increment the value by one.
@@ -189,7 +248,8 @@ bool handle_keys(GtkWidget* self, GdkEventKey *event, gpointer user_data) {
 
     // Previous set.
     case GDK_KEY_k:
-      return false;
+      selectable_previous(true);
+      return true;
 
     // Next set.
     case GDK_KEY_j:
@@ -202,11 +262,16 @@ bool handle_keys(GtkWidget* self, GdkEventKey *event, gpointer user_data) {
 
 }
 
+void next_set_clicked(GtkWidget* widget, gpointer user_data) {
+  selectable_next(true);
+}
+
 GtkWidget* init_command_bar() {
   GtkWidget* bar = gtk_action_bar_new();
 
   GtkWidget *next_set;
   next_set = gtk_button_new_from_icon_name("go-bottom", GTK_ICON_SIZE_SMALL_TOOLBAR);
+  g_signal_connect((GtkWidget*)next_set, "clicked", G_CALLBACK(next_set_clicked), NULL);
 
   gtk_action_bar_pack_start((GtkActionBar*)bar, next_set);
 
@@ -385,6 +450,10 @@ GtkButton *add_button(char *label, struct draggable_thing *dragdata, int type) {
             G_CALLBACK(drag_end), dragdata);
 
     gtk_container_add(GTK_CONTAINER(vbox), button);
+
+
+
+    // TODO Handle too many items.
 
     SelectableItem *current_item = malloc(sizeof(SelectableItem));
     current_item->ref = button;
