@@ -9,6 +9,8 @@ dragon \- lightweight DnD source/target
 .OP -p
 .OP -a
 .OP -A
+.OP -S
+.OP -G
 .OP -i
 .OP -f
 .OP -T
@@ -48,11 +50,17 @@ drag all files at once.
 .B -A --all-compact
 drag all files at once, only displaying the number of files.
 .TP
+.B -S --single
+only drag the file under the cursor, not the other selected ones.
+.TP
+.B -G --select-all
+start with all of the files selected.
+.TP
 .B -i --icon-only
 only show icons in drag-and-drop windows.
 .TP
 .B -f --name-only
-only show the file name, not path.
+only show the filename, not path.
 .TP
 .B -T --on-top
 make window always-on-top.
