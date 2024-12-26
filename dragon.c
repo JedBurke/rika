@@ -24,6 +24,7 @@
 #include <stdbool.h>
 #include <string.h>
 
+#define APPLICATION "rika"
 #define VERSION "1.2.0"
 
 // Defines the spacing between each item in the container (vbox).
@@ -673,7 +674,7 @@ int main (int argc, char **argv) {
     for (int i=1; i<argc; i++) {
         if (strcmp(argv[i], "--help") == 0) {
             mode = MODE_HELP;
-            printf("dragon - lightweight DnD source/target\n");
+            printf("%s - lightweight DnD source/target\n", APPLICATION);
             printf("Usage: %s [OPTION] [FILENAME]\n", progname);
             printf("  --and-exit,    -x  exit after a single completed drop\n");
             printf("  --target,      -t  act as a target instead of source\n");
@@ -808,7 +809,7 @@ int main (int argc, char **argv) {
 
     gtk_container_add(GTK_CONTAINER(window), outer_panel);
 
-    gtk_window_set_title(GTK_WINDOW(window), "dragon");
+    gtk_window_set_title(GTK_WINDOW(window), APPLICATION);
 
     if (all_compact)
         create_all_button();
